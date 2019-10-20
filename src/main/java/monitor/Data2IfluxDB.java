@@ -110,7 +110,7 @@ public class Data2IfluxDB {
 
         File[] files = file1.listFiles();
 
-        //遍历文件
+        //遍历
         for (int i = 0; i < files.length; i++) {
             //String machine = files[i].toString().split("/")[files[i].toString().split("/").length - 1];
             String machine = files[i].toString().split("\\\\")[files[i].toString().split("\\\\").length - 1];
