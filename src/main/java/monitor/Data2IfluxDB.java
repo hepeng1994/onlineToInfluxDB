@@ -1,7 +1,7 @@
 package monitor;
 
 
-import com.sun.deploy.util.StringUtils;
+import monitorutil.PropertiesUtil;
 import org.influxdb.InfluxDB;
 import org.influxdb.dto.BatchPoints;
 import org.influxdb.dto.Point;
@@ -13,11 +13,8 @@ import java.io.*;
 import java.sql.*;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -31,17 +28,31 @@ import java.util.stream.Collectors;
 public class Data2IfluxDB {
     static SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
     static SimpleDateFormat sdft = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    static PropertiesUtil propertiesUtil;
+
+    static {
+        try {
+            propertiesUtil = new PropertiesUtil();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     //存储上一个文件每个机器每个通道的时间
     static Map lastTime = new HashMap<String, String>();
     static Connection c = null;
 
     static {
         try {
+
+            String pgsql_url = propertiesUtil.readValue("pgsql_url");
+            System.out.println(pgsql_url);
             Class.forName("org.postgresql.Driver");
             c = DriverManager
                     //.getConnection("jdbc:postgresql://localhost:5432/postgres",
-                   .getConnection("jdbc:postgresql://192.168.31.103:5432/postgres",
-                    //.getConnection("jdbc:postgresql://172.17.195.191:5432/postgres",
+                    .getConnection(pgsql_url,
+                            //.getConnection("jdbc:postgresql://172.17.195.191:5432/postgres",
                             "postgres", "postgres");
             c.setAutoCommit(false);
             System.out.println("Opened database successfully");
@@ -76,9 +87,14 @@ public class Data2IfluxDB {
         }
     }
 
-    public static void main(String[] args) throws InterruptedException, SQLException, ParseException {
+    public Data2IfluxDB() throws IOException {
+    }
 
-        InfluxDBConnection influxDBConnection = new InfluxDBConnection("admin", "admin", "http://192.168.31.103:8086", "xiangtan", "");
+
+    public static void main(String[] args) throws InterruptedException, SQLException, ParseException, IOException {
+        String influx_db = propertiesUtil.readValue("influx_db");
+        String influx_url = propertiesUtil.readValue("influx_url");
+        InfluxDBConnection influxDBConnection = new InfluxDBConnection("admin", "admin", influx_url, influx_db, "");
         //ReadInfluxDB(influxDBConnection);
 
 
@@ -86,8 +102,10 @@ public class Data2IfluxDB {
         while (true) {
             Thread.sleep(5000);
 
+            String file_path = propertiesUtil.readValue("file");
+            System.out.println(file_path);
            // File file = new File("/root/1561101780000");
-            File file = new File("F:\\data\\test\\cf");
+            File file = new File(file_path);
             if (file.listFiles().length > 10) {
                 long startTime = System.currentTimeMillis();
                 file2TD(influxDBConnection, file);
@@ -96,8 +114,15 @@ public class Data2IfluxDB {
             }
         }
 
-
     }
+/**
+ * 功能描述: <br>
+ * 〈获取微妙〉
+ * @Param: []
+ * @Return: []
+ * @Author: 何鹏
+ * @Date: 2019/10/21 15:15
+ */
     public static Long getmicTime() {
         Long cutime = System.currentTimeMillis() * 1000; // 微秒
         Long nanoTime = System.nanoTime(); // 纳秒
@@ -105,7 +130,7 @@ public class Data2IfluxDB {
     }
 
 
-    private static void file2TD(InfluxDBConnection influxDBConnection, File file1) throws SQLException, ParseException {
+    private static void file2TD(InfluxDBConnection influxDBConnection, File file1) throws SQLException, ParseException  {
 
 
         File[] files = file1.listFiles();
@@ -118,22 +143,22 @@ public class Data2IfluxDB {
             //振动入库
             if (machine.startsWith("onlinemonitordata_1_sirui_rear_rotor_vibration")) {
 
-                rotor_vibration(influxDBConnection, files[i], "rear_rotor_vibration_1", 34);
+                rotor_vibration(influxDBConnection, files[i], "rear_rotor_vibration_1" );
 
             }
             if (machine.startsWith("onlinemonitordata_2_sirui_rear_rotor_vibration")) {
 
-                rotor_vibration(influxDBConnection, files[i], "rear_rotor_vibration_2", 34);
+                rotor_vibration(influxDBConnection, files[i], "rear_rotor_vibration_2" );
 
             }
             if (machine.startsWith("onlinemonitordata_2_sirui_front_rotor_vibration")) {
 
-                rotor_vibration(influxDBConnection, files[i], "front_rotor_vibration_2", 33);
+                rotor_vibration(influxDBConnection, files[i], "front_rotor_vibration_2");
 
             }
             if (machine.startsWith("onlinemonitordata_1_sirui_front_rotor_vibration")) {
 
-                rotor_vibration(influxDBConnection, files[i], "front_rotor_vibration_1", 33);
+                rotor_vibration(influxDBConnection, files[i], "front_rotor_vibration_1");
 
             }
             //绝缘过热
@@ -160,8 +185,6 @@ public class Data2IfluxDB {
             if (machine.startsWith("onlinemonitordata_1_sirui_partial_discharge")) {
                 partial_discharge(c, files[i], "partial_discharge", "1");
             }
-
-
         }
 
         for (int i = 0; i < files.length; i++) {
@@ -210,7 +233,7 @@ public class Data2IfluxDB {
      * @Author: 何鹏
      * @Date: 2019/10/15 13:54
      */
-    private static void rotor_vibration(InfluxDBConnection influxDBConnection, File file, String tableName, Integer subTypeId) {
+    private static void rotor_vibration(InfluxDBConnection influxDBConnection, File file, String tableName) {
         String s;
         List<String> records = new ArrayList<String>();
         //读取文件
@@ -220,7 +243,7 @@ public class Data2IfluxDB {
         for (int i1 = 1; i1 <= split.length; i1++) {
             String[] split2 = split[i1 - 1].split(" ");
             String date = split2[0] + " " + split2[1];
-            ArrayList arrayList1 = Transfrom.Transfrom_shake(split2[2], subTypeId);
+            ArrayList arrayList1 = Transfrom.Transfrom_shake(split2[2]);
             // SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
             Long time = 0L;
             try {
@@ -241,7 +264,7 @@ public class Data2IfluxDB {
             fields.put("serson5", arrayList1.get(4));
             // influxDBConnection.insert("rear_rotor_vibration_1",tags,fields,time,TimeUnit.MILLISECONDS);
 
-            Point point = influxDBConnection.pointBuilder(tableName,time, tags, fields);
+            Point point = influxDBConnection.pointBuilder(tableName, time, tags, fields);
             BatchPoints batchPoints1 = BatchPoints.database("xiangtan")
                     .retentionPolicy("").consistency(InfluxDB.ConsistencyLevel.ALL).build();
             batchPoints1.point(point);
@@ -304,7 +327,7 @@ public class Data2IfluxDB {
 
             // influxDBConnection.insert("rear_rotor_vibration_1",tags,fields,time,TimeUnit.MILLISECONDS);
 
-            Point point = influxDBConnection.pointBuilder(tableName,time, tags, fields);
+            Point point = influxDBConnection.pointBuilder(tableName, time, tags, fields);
             BatchPoints batchPoints1 = BatchPoints.database("xiangtan")
                     .retentionPolicy("").consistency(InfluxDB.ConsistencyLevel.ALL).build();
             batchPoints1.point(point);
@@ -346,7 +369,7 @@ public class Data2IfluxDB {
         for (int i1 = 1; i1 <= split.length; i1++) {
             String[] split2 = split[i1 - 1].split(" ");
             String date = split2[0] + " " + split2[1];
-           Long time = 0L;
+            Long time = 0L;
             try {
                 time = sdf.parse(date).getTime();
             } catch (ParseException e) {
@@ -356,14 +379,14 @@ public class Data2IfluxDB {
 
             Map<String, String> tags = new HashMap<String, String>();
             Map<String, Object> fields = new HashMap<String, Object>();
-           // System.out.println("轴电流:"+split2[2].substring(40960,split2[2].length()));
+            // System.out.println("轴电流:"+split2[2].substring(40960,split2[2].length()));
             fields.put("serson1", split2[2]);
 
 
             // influxDBConnection.insert("rear_rotor_vibration_1",tags,fields,time,TimeUnit.MILLISECONDS);
 
 
-            Point point = influxDBConnection.pointBuilder(tableName,time, tags, fields);
+            Point point = influxDBConnection.pointBuilder(tableName, time, tags, fields);
             BatchPoints batchPoints1 = BatchPoints.database("xiangtan")
                     .retentionPolicy("").consistency(InfluxDB.ConsistencyLevel.ALL).build();
             batchPoints1.point(point);
@@ -421,7 +444,7 @@ public class Data2IfluxDB {
     private static void ReadInfluxDB(InfluxDBConnection influxDBConnection) {
 
         // QueryResult query = influxDBConnection.query("select * from rear_rotor_vibration_3 limit 10");
-        QueryResult query = influxDBConnection.query("select * from rear_rotor_vibration_3 limit 10 tz('Asia/Shanghai')");
+        QueryResult query = influxDBConnection.query("select * from front_rotor_vibration_1 limit 10 tz('Asia/Shanghai')");
         QueryResult.Result result = query.getResults().get(0);
         if (result.getSeries() != null) {
             List<List<Object>> valueList = result.getSeries().stream().map(QueryResult.Series::getValues)
@@ -442,10 +465,10 @@ public class Data2IfluxDB {
                     String field5 = value.get(4) == null ? null : value.get(4).toString();
                     SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
                     System.out.println("time:" + field1);
-                    System.out.println("通道一:" + field2);
-                    System.out.println("通道二:" + field3);
-                    System.out.println("通道三:" + field4);
-                    System.out.println("通道四:" + field5);
+                    System.out.println("serson1:" + field2);
+                    System.out.println("serson2:" + field3);
+                    System.out.println("serson3:" + field4);
+                    System.out.println("serson4:" + field5);
                 }
             }
         }
