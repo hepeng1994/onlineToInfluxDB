@@ -1,5 +1,7 @@
 package monitorutil;
 
+import okhttp3.OkHttpClient;
+import org.influxdb.BatchOptions;
 import org.influxdb.InfluxDB;
 import org.influxdb.InfluxDB.ConsistencyLevel;
 import org.influxdb.InfluxDBFactory;
@@ -28,7 +30,8 @@ public class InfluxDBConnection {
     private String retentionPolicy;
 
     private InfluxDB influxDB;
-
+    static OkHttpClient.Builder client = new OkHttpClient.Builder()
+            .readTimeout(100,TimeUnit.SECONDS);
     public InfluxDBConnection(String username, String password, String openurl, String database,
                               String retentionPolicy) {
         this.username = username;
@@ -85,7 +88,8 @@ public class InfluxDBConnection {
      */
     public InfluxDB influxDbBuild() {
         if (influxDB == null) {
-            influxDB = InfluxDBFactory.connect(openurl, username, password);
+            influxDB = InfluxDBFactory.connect(openurl, username, password,client);
+
         }
         try {
             // if (!influxDB.databaseExists(database)) {
