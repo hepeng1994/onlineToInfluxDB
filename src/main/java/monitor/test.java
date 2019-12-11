@@ -1,17 +1,21 @@
 package monitor;
 
 import monitorutil.PgsqlDataSource;
+import sun.java2d.pipe.SpanIterator;
 
+import java.io.Console;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 import static monitor.Data2IfluxDB.sdf;
 
 public class test {
-    public static void main(String[] args) throws IOException, ParseException {
+    public static void main(String[] args) throws IOException, ParseException, SQLException {
       /*  String influx_db = propertiesUtil.readValue("influx_db");
         String influx_url = propertiesUtil.readValue("influx_url");
         InfluxDBConnection influxDBConnection = new InfluxDBConnection("admin", "admin", influx_url, influx_db, "");
@@ -81,12 +85,34 @@ public class test {
 
 */
 
-        Date date = new Date();
+        /*Date date = new Date();
         System.out.println(date);
 
         String format = sdf.format(date);
-        System.out.println(format);
-      /*  Connection conn = null;
+        System.out.println(format);*/
+        //Power2Pgsql.IntradayAdjustment("C:\\Users\\ASUS\\Desktop\\数据\\送端功率\\日内调整\\20190815\\祁韶直流_20190815012833.JHTZ");
+       /*  ArrayList<String> remove =new ArrayList<String>();
+
+            remove.add("onlinemonitordata_1_sirui_bearing_current");
+            remove.add("onlinemonitordata_1_sirui_front_rotor_vibration");
+            remove.add("onlinemonitordata_1_sirui_insulation_overheating");
+            remove.add("onlinemonitordata_1_sirui_rear_rotor_vibration");
+            remove.add("onlinemonitordata_2_sirui_bearing_current");
+            remove.add("onlinemonitordata_2_sirui_front_rotor_vibration");
+            remove.add("onlinemonitordata_2_sirui_insulation_overheating");
+            remove.add("onlinemonitordata_2_sirui_rear_rotor_vibration");
+        for (int i = 0; i < remove.size(); i++) {
+            String s = "tdm" +  remove.get(i).replace("onlinemonitordata_", "").replace("_sirui", "");
+            String  millisecondTableName = "tdm" + remove.get(i).replace("onlinemonitordata_", "").replace("_sirui", "")+"_800ms";
+            String secondTableName = "tdm" + remove.get(i).replace("onlinemonitordata_", "").replace("_sirui", "")+"_30s";
+
+            System.out.println(s+","+millisecondTableName+","+secondTableName);
+        }*/
+       //String a="onlinemonitordata_1_sirui_rear_rotor_vibration";
+       //String s = "tdm" + a.replace("onlinemonitordata_", "").replace("_sirui", "");
+       //System.out.println(s);
+        //tdm1_rear_rotor_vibration
+        /*  Connection conn = null;
         PreparedStatement pstmt= null;
         PgsqlDataSource datasource = new PgsqlDataSource();
         System.out.println(datasource);
@@ -107,6 +133,7 @@ public class test {
         }finally {
             datasource.backConnection(conn);
         }*/
+
 
     }
 

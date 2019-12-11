@@ -28,7 +28,6 @@ import java.util.stream.Collectors;
 
 public class Data2IfluxDB {
     static SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
-    static SimpleDateFormat sdft = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
     static PropertiesUtil propertiesUtil;
 
     static {

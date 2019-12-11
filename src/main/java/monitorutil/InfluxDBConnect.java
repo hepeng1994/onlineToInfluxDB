@@ -35,7 +35,7 @@ public class InfluxDBConnect {
     private    final ThreadFactory threadFactory;
     //设置超时间
     static OkHttpClient.Builder client = new OkHttpClient.Builder()
-            .readTimeout(100,TimeUnit.SECONDS);
+            .readTimeout(500,TimeUnit.SECONDS);
     public InfluxDBConnect(String username, String password, String openurl, String database){
         this.username = username;
         this.password = password;

@@ -1,6 +1,8 @@
 package monitor;
 
+import monitorhandler.DataConvertHandler;
 import monitorhandler.Transfrom;
+import monitorhandler.TransfromTime;
 import monitorutil.*;
 import org.influxdb.InfluxDB;
 import org.influxdb.dto.BatchPoints;
@@ -8,19 +10,26 @@ import org.influxdb.dto.Point;
 import org.influxdb.dto.QueryResult;
 
 import java.io.*;
+import java.math.BigDecimal;
+import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.DateTimeException;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import static monitorhandler.TransfromTime.ArrayCalculation;
+import static monitorhandler.TransfromTime.doubleToString;
 
 public class Data2InfluxDBTime {
     static SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
     static SimpleDateFormat sdft = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
     static PropertiesUtil propertiesUtil;
-
+    //static final int timeInterval=86400000;
+    static final long timeInterval=5524253355235420L;
     static {
         try {
             propertiesUtil = new PropertiesUtil();
@@ -33,9 +42,11 @@ public class Data2InfluxDBTime {
     //存储上一个文件每个机器每个通道的时间
     static java.sql.Connection c = null;
     static ArrayList<String> remove = new ArrayList<String>();
+
     //记录30S表最新入库的一条数据
     static HashMap<String, Long> timeSecond = new HashMap();
     static HashMap<String, Long> lastTime = new HashMap();
+    static HashMap<String, Long> fileTime = new HashMap();
 
 
     static {
@@ -50,62 +61,49 @@ public class Data2InfluxDBTime {
         remove.add("onlinemonitordata_2_sirui_rear_rotor_vibration");
         //remove.add("onlinemonitordata_2_sirui_partial_discharge");
     }
-    static {
+
+   /* static {
         try {
 
             String pgsql_url = propertiesUtil.readValue("pgsql_url");
             System.out.println(pgsql_url);
             PgsqlDataSource pgsqlDataSource = new PgsqlDataSource();
-            c = pgsqlDataSource.getConnection();
-           /* Class.forName("org.postgresql.Driver");
-            c = DriverManager
-                    .getConnection("jdbc:postgresql://localhost:5432/postgres",
-                    //.getConnection(pgsql_url,
-                            //.getConnection("jdbc:postgresql://172.17.195.191:5432/postgres",
-                            "postgres", "postgres");
-            c.setAutoCommit(false);*/
+           c = pgsqlDataSource.getConnection();
+
             System.out.println("Opened database successfully");
         } catch (Exception e) {
             System.err.println(e.getClass().getName() + ": " + e.getMessage());
             System.exit(0);
         }
-        try {
-            Statement stmt = c.createStatement();
-            String sql = "";
-            //控制机器号
-            for (int i = 1; i <= 2; i++) {
-                //控制通道号
-                for (int j = 1; j <= 3; j++) {
-                    sql = String.format(" SELECT * FROM partial_discharge  where machine='%s' AND channelId=%s ORDER BY createtime DESC LIMIT 1", i, j);
-                    System.out.println(sql);
-                    ResultSet resultSet = stmt.executeQuery(sql);
-                    while (resultSet.next()) {
-                        Date createtime = sdft.parse(resultSet.getString("createtime"));
-                        String key = resultSet.getString("machine") + resultSet.getInt("channelId");
-                        lastTime.put(key, createtime.getTime());
-                        System.out.println(i + "号机" + j + "通道key:" + key + " value:" + createtime.getTime());
-
-                    }
-                }
-            }
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } catch (ParseException e) {
-            e.printStackTrace();
-        }
-    }
+    }*/
 
     public static void main(String[] args) throws InterruptedException, SQLException, ParseException, IOException {
+        //String arg = args[0];
+        //String arg = "F:\\data\\test\\新建文件夹";
+       // System.out.println(arg);
         String influx_db = propertiesUtil.readValue("influx_db");
-        String influx_url = propertiesUtil.readValue("influx_url");
+       // String influx_url = propertiesUtil.readValue("influx_url");
+        String influx_url = "http://192.168.120.102:8086";
         InfluxDBConnect influxDBConnection = new InfluxDBConnect("admin", "admin", influx_url, influx_db);
-        //ReadInfluxDB(influxDBConnection);
-
-        while (true) {
+        long timeMillis = System.currentTimeMillis();
+        ReadInfluxDB(influxDBConnection);
+        long timeMillis2 = System.currentTimeMillis();
+        System.out.println((timeMillis2-timeMillis)/1000);
+   /*     influxDBConnection.deleteMeasurementData("delete from tdm_back_bearing_1_800ms");
+        influxDBConnection.deleteMeasurementData("delete from tdm_back_bearing_2_800ms");
+        influxDBConnection.deleteMeasurementData("delete from tdm_front_bearing_2_800ms");
+        influxDBConnection.deleteMeasurementData("delete from tdm_front_bearing_1_800ms");
+        influxDBConnection.deleteMeasurementData("delete from tdm_Insulating_material_overheating_2_800ms");
+        influxDBConnection.deleteMeasurementData("delete from tdm_Insulating_material_overheating_1_800ms");
+        influxDBConnection.deleteMeasurementData("delete from tdm_shaft_electric_current_1_800ms");
+        influxDBConnection.deleteMeasurementData("delete from tdm_shaft_electric_current_2_800ms");*/
+        //File file_History = new File(arg);
+        //File[] files = file_History.listFiles();
+     /*   for (int i = 1; i < files.length; i++) {
+            File file = new File(files[i].toString());
             Thread.sleep(5000);
-            String file_path = propertiesUtil.readValue("file");
-            File file = new File(file_path);
+            //String file_path = propertiesUtil.readValue("file");
+
             List<String> collect = Arrays.stream(file.listFiles()).map(File::getName).collect(Collectors.toList());
             collect.retainAll(remove);
             if (collect.size() > 0) {
@@ -116,8 +114,7 @@ public class Data2InfluxDBTime {
                 String date_format = sdf.format(date);
                 System.out.println(date_format + "文件夹所用时间:" + (stopTime - startTime) + "毫秒");
             }
-        }
-
+        }*/
     }
 
     /**
@@ -144,54 +141,56 @@ public class Data2InfluxDBTime {
         //遍历
         for (int i = 0; i < files.length; i++) {
             String machine = files[i].getName();
-            // String machine = files[i].toString().split("/")[files[i].toString().split("/").length - 1];
-            //String machine = files[i].toString().split("\\\\")[files[i].toString().split("\\\\").length - 1];
 
             //振动入库
-            if (machine.equals("onlinemonitordata_1_sirui_rear_rotor_vibration")) {
+            if (machine.equals("onlinemonitordata_1_sirui_rear_rotor_vibration")&fileTime.getOrDefault(files[i].getName(),0L)<files[i].lastModified()) {
                 //实时入库influxDB,30秒入库pgsql
-                rotor_vibration(influxDBConnection, files[i],"tdm_back_bearing_1_millisecond",timeSecond,"tdm_back_bearing_1_thirty_s");
+                rotor_vibration(influxDBConnection, files[i], 34,"tdm_back_bearing_1_800ms", timeSecond, "tdm_back_bearing_1_30s");
+                fileTime.put(files[i].getName(),files[i].lastModified());
             }
-            if (machine.equals("onlinemonitordata_2_sirui_rear_rotor_vibration")) {
+            if (machine.equals("onlinemonitordata_2_sirui_rear_rotor_vibration")&fileTime.getOrDefault(files[i].getName(),0L)<files[i].lastModified()) {
                 //实时入库influxDB,30秒入库pgsql
-                rotor_vibration(influxDBConnection, files[i],"tdm_back_bearing_2_millisecond",timeSecond,"tdm_back_bearing_2_thirty_s");
-
+                rotor_vibration(influxDBConnection, files[i], 34,"tdm_back_bearing_2_800ms", timeSecond, "tdm_back_bearing_2_30s");
+                fileTime.put(files[i].getName(),files[i].lastModified());
             }
-            if (machine.equals("onlinemonitordata_2_sirui_front_rotor_vibration")) {
+            if (machine.equals("onlinemonitordata_2_sirui_front_rotor_vibration")&fileTime.getOrDefault(files[i].getName(),0L)<files[i].lastModified()) {
                 //实时入库influxDB,30秒入库pgsql
-                rotor_vibration(influxDBConnection, files[i],"tdm_front_bearing_2_millisecond",timeSecond,"tdm_front_bearing_2_thirty_s");
+                rotor_vibration(influxDBConnection, files[i], 33,"tdm_front_bearing_2_800ms", timeSecond, "tdm_front_bearing_2_30s");
+                fileTime.put(files[i].getName(),files[i].lastModified());
             }
-            if (machine.equals("onlinemonitordata_1_sirui_front_rotor_vibration")) {
+            if (machine.equals("onlinemonitordata_1_sirui_front_rotor_vibration")&fileTime.getOrDefault(files[i].getName(),0L)<files[i].lastModified()) {
                 //实时入库influxDB,30秒入库pgsql
-                rotor_vibration(influxDBConnection, files[i],"tdm_front_bearing_1_millisecond",timeSecond,"tdm_front_bearing_1_thirty_s");
+                rotor_vibration(influxDBConnection, files[i], 33,"tdm_front_bearing_1_800ms", timeSecond, "tdm_front_bearing_1_30s");
+                fileTime.put(files[i].getName(),files[i].lastModified());
             }
             //绝缘过热
-            if (machine.equals("onlinemonitordata_2_sirui_insulation_overheating")) {
+            if (machine.equals("onlinemonitordata_2_sirui_insulation_overheating")&fileTime.getOrDefault(files[i].getName(),0L)<files[i].lastModified()) {
                 //实时入库influxDB,30秒入库pgsql
-                insulation_overheating(influxDBConnection, files[i], "tdm_Insulating_material_overheating_2_millisecond", timeSecond,"tdm_Insulating_material_overheating_2_thirty_s");
-
+                insulation_overheating(influxDBConnection, files[i], "tdm_Insulating_material_overheating_2_800ms", timeSecond, "tdm_Insulating_material_overheating_2_30s");
+                fileTime.put(files[i].getName(),files[i].lastModified());
             }
-            if (machine.equals("onlinemonitordata_1_sirui_insulation_overheating")) {
+            if (machine.equals("onlinemonitordata_1_sirui_insulation_overheating")&fileTime.getOrDefault(files[i].getName(),0L)<files[i].lastModified()) {
                 //实时入库influxDB,30秒入库pgsql
-                insulation_overheating(influxDBConnection, files[i], "tdm_Insulating_material_overheating_1_millisecond", timeSecond,"tdm_Insulating_material_overheating_1_thirty_s");
-                }
+                insulation_overheating(influxDBConnection, files[i], "tdm_Insulating_material_overheating_1_800ms", timeSecond, "tdm_Insulating_material_overheating_1_30s");
+                fileTime.put(files[i].getName(),files[i].lastModified());
+            }
             //轴电流
-            if (machine.equals("onlinemonitordata_2_sirui_bearing_current")) {
+            if (machine.equals("onlinemonitordata_2_sirui_bearing_current")&fileTime.getOrDefault(files[i].getName(),0L)<files[i].lastModified()) {
                 //实时入库influxDB,30秒入库pgsql
-                bearing_current(influxDBConnection, files[i], "tdm_shaft_electric_current_2_millisecond", timeSecond,"tdm_shaft_electric_current_2_thirty_s");
-
+                bearing_current(influxDBConnection, files[i], "tdm_shaft_electric_current_2_800ms", timeSecond, "tdm_shaft_electric_current_2_30s");
+                fileTime.put(files[i].getName(),files[i].lastModified());
             }
-            if (machine.equals("onlinemonitordata_1_sirui_bearing_current")) {
+            if (machine.equals("onlinemonitordata_1_sirui_bearing_current")&fileTime.getOrDefault(files[i].getName(),0L)<files[i].lastModified()) {
                 //实时入库influxDB,30秒入库pgsql
-                bearing_current(influxDBConnection, files[i], "tdm_shaft_electric_current_1_millisecond", timeSecond,"tdm_shaft_electric_current_1_thirty_s");
-
+                bearing_current(influxDBConnection, files[i], "tdm_shaft_electric_current_1_800ms", timeSecond, "tdm_shaft_electric_current_1_30s");
+                fileTime.put(files[i].getName(),files[i].lastModified());
             }
-            if (machine.startsWith("onlinemonitordata_2_sirui_partial_discharge")) {
+          /*  if (machine.startsWith("onlinemonitordata_2_sirui_partial_discharge")) {
                 partial_discharge(c, files[i], "partial_discharge", "2");
             }
             if (machine.startsWith("onlinemonitordata_1_sirui_partial_discharge")) {
                 partial_discharge(c, files[i], "partial_discharge", "1");
-            }
+            }*/
         }
 
     /*    for (int i = 0; i < files.length; i++) {
@@ -240,65 +239,89 @@ public class Data2InfluxDBTime {
      * @Author: 何鹏
      * @Date: 2019/10/15 13:54
      */
-    public static void rotor_vibration(InfluxDBConnect influxDBConnection, File file,String tableNameMillisecond,HashMap<String, Long> secondTimeMap2,String tableNameSecond) {
+    public static void rotor_vibration(InfluxDBConnect influxDBConnection, File file, Integer subTypeId, String tableNameMillisecond, HashMap<String, Long> secondTimeMap2, String tableNameSecond) {
 
         List<String> records = new ArrayList<String>();
         //读取文件
         String line = readToString(file.toString());
         String[] split = line.split("\n");
 
-
+        try {
         for (int i1 = 1; i1 <= split.length; i1++) {
-            try {
+
                 String[] split2 = split[i1 - 1].split(" ");
                 String date = split2[0] + " " + split2[1];
-                ArrayList arrayList1 = Transfrom.Transfrom_shake(split2[2]);
+                ArrayList<HashMap<String, Double>> arrayList1 = TransfromTime.Transfrom_shake(split2[2], subTypeId);
                 // SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
                 Long dataTime = sdf.parse(date).getTime();
                 long nowTime = System.currentTimeMillis();
                 long timeDifference = nowTime - dataTime;
                 Long lastTime = secondTimeMap2.getOrDefault(file.getName(), 0L);
                 //判断数据时间戳在20天以内
-                if (dataTime <= nowTime & timeDifference < 86400000) {
+                if (dataTime <= nowTime & timeDifference < timeInterval) {
 
 
-                        Map<String, String> tags = new HashMap<String, String>();
-                        Map<String, Object> fields = new HashMap<String, Object>();
+                    Map<String, String> tags = new HashMap<String, String>();
+                    Map<String, Object> fields = new HashMap<String, Object>();
+                    Double non_outgoing_x_axis_min=Double.parseDouble(doubleToString(arrayList1.get(0).get("最小值"),5));
+                    Double non_outgoing_x_axis_max=Double.parseDouble(doubleToString(arrayList1.get(0).get("最大值"),5));
+                    BigDecimal non_outgoing_x_axis_avg=new BigDecimal(doubleToString(arrayList1.get(0).get("平均值"),10));
+                    Double non_outgoing_y_axis_min=Double.parseDouble(doubleToString(arrayList1.get(1).get("最小值"),5));
+                    BigDecimal non_outgoing_y_axis_avg=new BigDecimal(doubleToString(arrayList1.get(1).get("平均值"),10));
+                    Double non_outgoing_y_axis_max=Double.parseDouble(doubleToString(arrayList1.get(1).get("最大值"),5));
+                    Double outgoing_x_axis_min=Double.parseDouble(doubleToString(arrayList1.get(2).get("最小值"),5));
+                    Double outgoing_x_axis_max=Double.parseDouble(doubleToString(arrayList1.get(2).get("最大值"),5));
+                    BigDecimal outgoing_x_axis_avg= new BigDecimal(doubleToString(arrayList1.get(2).get("平均值"),10));
+                    Double outgoing_y_axis_min=Double.parseDouble(doubleToString(arrayList1.get(3).get("最小值"),5));
+                    Double outgoing_y_axis_max=Double.parseDouble(doubleToString(arrayList1.get(3).get("最大值"),5));
+                    BigDecimal outgoing_y_axis_avg= new BigDecimal(doubleToString(arrayList1.get(3).get("平均值"),10));
+;
+                    fields.put("non_outgoing_x_axis_min",non_outgoing_x_axis_min);
+                    fields.put("non_outgoing_x_axis_max",non_outgoing_x_axis_max);
+                    fields.put("non_outgoing_x_axis_avg",non_outgoing_x_axis_avg );
+                    fields.put("non_outgoing_y_axis_min", non_outgoing_y_axis_min);
+                    fields.put("non_outgoing_y_axis_avg", non_outgoing_y_axis_avg);
+                    fields.put("non_outgoing_y_axis_max", non_outgoing_y_axis_max);
+                    fields.put("outgoing_x_axis_min", outgoing_x_axis_min);
+                    fields.put("outgoing_x_axis_max",outgoing_x_axis_max);
+                    fields.put("outgoing_x_axis_avg", outgoing_x_axis_avg);
+                    fields.put("outgoing_y_axis_min",outgoing_y_axis_min);
+                    fields.put("outgoing_y_axis_max", outgoing_y_axis_max);
+                    fields.put("outgoing_y_axis_avg", outgoing_y_axis_avg);
+                    //震动解析数据剩余(解析未知)
+                    // fields.put("sensor5", arrayList1.get(4));
+                    // influxDBConnection.insert("rear_rotor_vibration_1",tags,fields,time,TimeUnit.MILLISECONDS);
 
-                        fields.put("sensor1", arrayList1.get(0));
-                        fields.put("sensor2", arrayList1.get(1));
-                        fields.put("sensor3", arrayList1.get(2));
-                        fields.put("sensor4", arrayList1.get(3));
-                        //震动解析数据剩余(解析未知)
-                        fields.put("sensor5", arrayList1.get(4));
-                        // influxDBConnection.insert("rear_rotor_vibration_1",tags,fields,time,TimeUnit.MILLISECONDS);
+                    Point point = influxDBConnection.pointBuilder(tableNameMillisecond, dataTime, tags, fields);
+                    BatchPoints batchPoints1 = BatchPoints.database("xiangtan")
+                            .retentionPolicy("").consistency(InfluxDB.ConsistencyLevel.ALL).build();
+                    batchPoints1.point(point);
 
-                        Point point = influxDBConnection.pointBuilder(tableNameMillisecond, dataTime, tags, fields);
-                        BatchPoints batchPoints1 = BatchPoints.database("xiangtan")
-                                .retentionPolicy("").consistency(InfluxDB.ConsistencyLevel.ALL).build();
-                        batchPoints1.point(point);
+                    records.add(batchPoints1.lineProtocol());
 
-                        records.add(batchPoints1.lineProtocol());
+                    //30秒统计入库pgsql,同时去掉了重复数据的可能
+                    if ((dataTime - lastTime) >= 30000) {
+                        Statement stmt = c.createStatement();
+                        String sql = String.format("insert into %s (createtime,non_outgoing_x_axis_min,non_outgoing_x_axis_max,non_outgoing_x_axis_avg,non_outgoing_y_axis_min,non_outgoing_y_axis_max,non_outgoing_y_axis_avg,outgoing_x_axis_min,outgoing_x_axis_max,outgoing_x_axis_avg,outgoing_y_axis_min,outgoing_y_axis_max,outgoing_y_axis_avg) values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", tableNameSecond,"'"+sdf.format(sdf.parse(date))+"'",non_outgoing_x_axis_min,non_outgoing_x_axis_max,non_outgoing_x_axis_avg,non_outgoing_y_axis_min,non_outgoing_y_axis_max,non_outgoing_y_axis_avg,outgoing_x_axis_min,outgoing_x_axis_max,outgoing_x_axis_avg,outgoing_y_axis_min,outgoing_y_axis_max,outgoing_y_axis_avg );
 
-                    //30秒统计入库pgsql
-                if ((dataTime - lastTime) >= 30000) {
-                    Statement stmt = c.createStatement();
-                    String sql = String.format("insert into %s (createtime,machine,channelId,pdi,pdiminus,pdiplus,q02,q02minus,q02mv,q02plus,sumpdampl,sumpdminus,sumpdplus,pdexists,humidity,temperature) values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)");
-                    stmt.execute(sql);
-                }
+                        stmt.execute(sql);
+                        secondTimeMap2.put(file.getName(),dataTime);
+                    }
+
+                } else {
                     System.out.println("本次时间戳为:" + date);
-                    continue;
                 }
 
-            } catch (Exception e) {
-                //System.out.println(split[i1 - 1].toString());
-            }
+
         }
         //数据入库
         influxDBConnection.batchInsert("xiangtan", "", InfluxDB.ConsistencyLevel.ALL, records);
         //删除文件
-        file.delete();
-
+       // file.delete();
+        } catch (Exception e) {
+            e.printStackTrace();
+            //System.out.println(split[i1 - 1].toString());
+        }
 
     }
 
@@ -311,19 +334,19 @@ public class Data2InfluxDBTime {
      * @Author: 何鹏
      * @Date: 2019/10/15 13:54
      */
-    private static void insulation_overheating(InfluxDBConnect influxDBConnection, File file,String tableNameMillisecond,HashMap<String, Long> secondTimeMap2,String tableNameSecond) {
+    private static void insulation_overheating(InfluxDBConnect influxDBConnection, File file, String tableNameMillisecond, HashMap<String, Long> secondTimeMap2, String tableNameSecond) {
 
         List<String> records = new ArrayList<String>();
         String line = readToString(file.toString());
         String[] split = line.split("\n");
 
-
+        try {
         for (int i1 = 1; i1 <= split.length; i1++) {
-            try {
+
                 String[] split2 = split[i1 - 1].split(" ");
                 String date = split2[0] + " " + split2[1];
                 //解析数据
-                ArrayList arrayList1 = Transfrom.Transfrom_hot(split2[2]);
+                ArrayList<HashMap<String, Double>> arrayList1 = TransfromTime.Transfrom_hot(split2[2]);
                 //SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
                 Long dataTime = 0L;
                 try {
@@ -336,40 +359,57 @@ public class Data2InfluxDBTime {
                 long timeDifference = nowTime - dataTime;
                 Long lastTime = secondTimeMap2.getOrDefault(file.getName(), 0L);
                 //判断数据时间戳在20天以内
-                if (dataTime <= nowTime & timeDifference < 86400000) {
+                if (dataTime <= nowTime & timeDifference < timeInterval) {
 
-                        Map<String, String> tags = new HashMap<String, String>();
-                        Map<String, Object> fields = new HashMap<String, Object>();
+                    Map<String, String> tags = new HashMap<String, String>();
+                    Map<String, Object> fields = new HashMap<String, Object>();
+                    Double channel_1_min=Double.parseDouble(doubleToString(arrayList1.get(0).get("最小值"),10));
+                    Double channel_1_max=Double.parseDouble(doubleToString(arrayList1.get(0).get("最大值"),10));
+                    Double channel_1_avg=Double.parseDouble(doubleToString(arrayList1.get(0).get("平均值"),15));
+                    Double channel_2_min=Double.parseDouble(doubleToString(arrayList1.get(1).get("最小值"),10));
+                    Double channel_2_avg=Double.parseDouble(doubleToString(arrayList1.get(1).get("平均值"),15));
+                    Double channel_2_max=Double.parseDouble(doubleToString(arrayList1.get(1).get("最大值"),10));
+                    Double channel_3_min=Double.parseDouble(doubleToString(arrayList1.get(2).get("最小值"),10));
+                    Double channel_3_max=Double.parseDouble(doubleToString(arrayList1.get(2).get("最大值"),10));
+                    Double channel_3_avg=Double.parseDouble(doubleToString(arrayList1.get(2).get("平均值"),15));
+                    fields.put("channel_1_min", channel_1_min);
+                    fields.put("channel_1_max", channel_1_max);
+                    fields.put("channel_1_avg", channel_1_avg);
+                    fields.put("channel_2_min", channel_2_min);
+                    fields.put("channel_2_avg", channel_2_avg);
+                    fields.put("channel_2_max", channel_2_max);
+                    fields.put("channel_3_min", channel_3_min);
+                    fields.put("channel_3_max", channel_3_max);
+                    fields.put("channel_3_avg",  channel_3_avg);
 
-                        fields.put("sensor1", arrayList1.get(0));
-                        fields.put("sensor2", arrayList1.get(1));
-                        fields.put("sensor3", arrayList1.get(2));
+                    // influxDBConnection.insert("rear_rotor_vibration_1",tags,fields,time,TimeUnit.MILLISECONDS);
 
-                        // influxDBConnection.insert("rear_rotor_vibration_1",tags,fields,time,TimeUnit.MILLISECONDS);
+                    Point point = influxDBConnection.pointBuilder(tableNameMillisecond, dataTime, tags, fields);
+                    BatchPoints batchPoints1 = BatchPoints.database("xiangtan")
+                            .retentionPolicy("").consistency(InfluxDB.ConsistencyLevel.ALL).build();
+                    batchPoints1.point(point);
 
-                        Point point = influxDBConnection.pointBuilder(tableNameMillisecond, dataTime, tags, fields);
-                        BatchPoints batchPoints1 = BatchPoints.database("xiangtan")
-                                .retentionPolicy("").consistency(InfluxDB.ConsistencyLevel.ALL).build();
-                        batchPoints1.point(point);
-
-                        records.add(batchPoints1.lineProtocol());
+                    records.add(batchPoints1.lineProtocol());
 
                     if ((dataTime - lastTime) >= 30000) {
-
+                        Statement stmt = c.createStatement();
+                        String sql = String.format("insert into %s (createtime,channel_1_min,channel_1_max,channel_1_avg,channel_2_min,channel_2_max,channel_2_avg,channel_3_min,channel_3_max,channel_3_avg) values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", tableNameSecond,"'"+sdf.format(sdf.parse(date))+"'",channel_1_min,channel_1_max,channel_1_avg,channel_2_min,channel_2_max,channel_2_avg,channel_3_min,channel_3_max,channel_3_avg);
+                        stmt.execute(sql);
+                        secondTimeMap2.put(file.getName(),dataTime);
                     }
                 } else {
                     System.out.println("本次时间戳为:" + date);
-                    continue;
                 }
-            } catch (Exception e) {
-                //System.out.println(split[i1 - 1].toString());
-            }
+
         }
 
         //long startTime = System.currentTimeMillis();
         influxDBConnection.batchInsert("xiangtan", "", InfluxDB.ConsistencyLevel.ALL, records);
-        file.delete();
-        //long stopTime = System.currentTimeMillis();
+        //file.delete();
+    } catch (Exception e) {
+       e.printStackTrace();
+    }
+    //long stopTime = System.currentTimeMillis();
         // System.out.println(tableName + "文件夹所用时间:" + (stopTime - startTime) + "毫秒");
     }
 
@@ -382,14 +422,14 @@ public class Data2InfluxDBTime {
      * @Author: 何鹏
      * @Date: 2019/10/15 13:55
      */
-    private static void bearing_current(InfluxDBConnect influxDBConnection, File file,String tableNameMillisecond,HashMap<String, Long> secondTimeMap2,String tableNameSecond) {
+    private static void bearing_current(InfluxDBConnect influxDBConnection, File file, String tableNameMillisecond, HashMap<String, Long> secondTimeMap2, String tableNameSecond) {
 
         List<String> records = new ArrayList<String>();
         String line = readToString(file.toString());
-        String[] split = line.split("\n");
-
+        String[] split = (line != null) ? line.split("\n") : new String[0];
+        try {
         for (int i1 = 1; i1 <= split.length; i1++) {
-            try {
+
                 String[] split2 = split[i1 - 1].split(" ");
                 String date = split2[0] + " " + split2[1];
                 Long dataTime = 0L;
@@ -403,34 +443,41 @@ public class Data2InfluxDBTime {
                 long timeDifference = nowTime - dataTime;
                 Long lastTime = secondTimeMap2.getOrDefault(file.getName(), 0L);
                 //判断数据时间戳在20天以内
-                if (dataTime <= nowTime & timeDifference < 86400000) {
+                if (dataTime <= nowTime & timeDifference < timeInterval) {
 
-                        Map<String, String> tags = new HashMap<String, String>();
-                        Map<String, Object> fields = new HashMap<String, Object>();
-                        fields.put("sensor1", split2[2]);
-                        Point point = influxDBConnection.pointBuilder(tableNameMillisecond, dataTime, tags, fields);
-                        BatchPoints batchPoints1 = BatchPoints.database("xiangtan")
-                                .retentionPolicy("").consistency(InfluxDB.ConsistencyLevel.ALL).build();
-                        batchPoints1.point(point);
+                    Map<String, String> tags = new HashMap<String, String>();
+                    Map<String, Object> fields = new HashMap<String, Object>();
+                    double[] doubleArrayByStringVersionTwo = DataConvertHandler.getDoubleArrayByStringVersionTwo(split2[2]);
+                    HashMap<String, Double> arrayList1 = ArrayCalculation(doubleArrayByStringVersionTwo);
+                    Double channel_min=Double.parseDouble(doubleToString(arrayList1.get("最小值"),10));
+                    Double channel_max=Double.parseDouble(doubleToString(arrayList1.get("最大值"),10));
+                    Double channel_avg=Double.parseDouble(doubleToString(arrayList1.get("平均值"),15));
+                    fields.put("channel_min", channel_min);
+                    fields.put("channel_max", channel_max);
+                    fields.put("channel_avg", channel_avg);
+                    Point point = influxDBConnection.pointBuilder(tableNameMillisecond, dataTime, tags, fields);
+                    BatchPoints batchPoints1 = BatchPoints.database("xiangtan")
+                            .retentionPolicy("").consistency(InfluxDB.ConsistencyLevel.ALL).build();
+                    batchPoints1.point(point);
 
-                        records.add(batchPoints1.lineProtocol());
+                    records.add(batchPoints1.lineProtocol());
                     if ((dataTime - lastTime) >= 30000) {
+                        Statement stmt = c.createStatement();
+                        String sql = String.format("insert into %s (createtime,channel_min,channel_max,channel_avg) values(%s,%s,%s,%s)", tableNameSecond,"'"+sdf.format(sdf.parse(date))+"'",channel_min,channel_max,channel_avg);
+                        stmt.execute(sql);
+                        secondTimeMap2.put(file.getName(),dataTime);
                     }
                 } else {
                     System.out.println("本次时间戳为:" + date);
-                    continue;
                 }
 
-            } catch (Exception e) {
-                // System.out.println(split[i1 - 1].toString());
-            }
+        }
+        influxDBConnection.batchInsert("xiangtan", "", InfluxDB.ConsistencyLevel.ALL, records);
+       // file.delete();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
-        //long startTime = System.currentTimeMillis();
-        influxDBConnection.batchInsert("xiangtan", "", InfluxDB.ConsistencyLevel.ALL, records);
-        file.delete();
-        //long stopTime = System.currentTimeMillis();
-        //System.out.println(tableName + "文件夹所用时间:" + (stopTime - startTime) + "毫秒");
     }
 
     /**
@@ -464,11 +511,13 @@ public class Data2InfluxDBTime {
         c.commit();
         file.delete();
     }
-    private static void ReadInfluxDB(InfluxDBConnection influxDBConnection) {
 
-        QueryResult query = influxDBConnection.query("select count(sersor1) from onlinemonitordata_1_tsziot_front_rotor_vibration");
-        //QueryResult query = influxDBConnection.query("select * from insulation_overheating_1 ORDER BY time DESC limit 1 tz('Asia/Shanghai')");
+    private static void ReadInfluxDB(InfluxDBConnect influxDBConnection) throws ParseException {
+
+        //QueryResult query = influxDBConnection.query("select count(sersor1) from onlinemonitordata_1_tsziot_front_rotor_vibration");
+        QueryResult query = influxDBConnection.query("select * from tdm1_bearing_current ORDER BY time desc limit 1 tz('Asia/Shanghai')");
         QueryResult.Result result = query.getResults().get(0);
+
         if (result.getSeries() != null) {
             List<List<Object>> valueList = result.getSeries().stream().map(QueryResult.Series::getValues)
                     .collect(Collectors.toList()).get(0);
@@ -476,24 +525,23 @@ public class Data2InfluxDBTime {
                 for (List<Object> value : valueList) {
                     Map<String, String> map = new HashMap<String, String>();
                     // 数据库中字段1取值
-                    String field1 = value.get(0) == null ? null : value.get(0).toString();
-                    // 数据库中字段2取值
-                    String field2 = value.get(1) == null ? null : value.get(1).toString();
+                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+                    for (int i = 0; i < value.size(); i++) {
+                        if (i>0){
+                            Object field1 = value.get(i) == null ? null : value.get(i);
+                            //String bigDecimal =doubleToString(Double.parseDouble(field1.toString()),10);
+                            System.out.println("第"+(i+1)+"个字段:"+field1);
+                        }else {
+                            String field1 = value.get(i) == null ? null : value.get(i).toString();
+                            System.out.println("第"+(i+1)+"个字段:"+sdft.format(sdf.parse(field1)));
+                        }
 
-                    // 数据库中字段3取值
-                    //String field3 = value.get(2) == null ? null : value.get(2).toString();
-                    // 数据库中字段4取值
-                    //  String field4 = value.get(3) == null ? null : value.get(3).toString();
-                  /*  // 数据库中字段5取值
-                    String field5 = value.get(4) == null ? null : value.get(4).toString();*/
-                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
-                    System.out.println("time:" + field1);
-                    System.out.println("sersor1:" + field2);
-                    //System.out.println("serson2:" + field3);
-                    //System.out.println("serson3:" + field4);
-                    // System.out.println("serson4:" + field5);
+                    }
+
                 }
             }
         }
+
+        influxDBConnection.close();
     }
 }

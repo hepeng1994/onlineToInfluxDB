@@ -1,6 +1,8 @@
 package monitor;
 
 import monitorutil.InfluxDBConnect;
+import monitorutil.PgsqlConnect;
+import monitorutil.PgsqlDataSource;
 import monitorutil.PropertiesUtil;
 import monitorhandler.Transfrom;
 
@@ -12,7 +14,9 @@ import org.influxdb.dto.QueryResult;
 
 import java.io.*;
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -40,24 +44,17 @@ public class Data2InfluxDB_History {
         remove.add("onlinemonitordata_1_sirui_front_rotor_vibration");
         remove.add("onlinemonitordata_1_sirui_insulation_overheating");
         remove.add("onlinemonitordata_1_sirui_rear_rotor_vibration");
-        // remove.add("onlinemonitordata_1_sirui_partial_discharge");
+         remove.add("onlinemonitordata_1_sirui_partial_discharge");
         remove.add("onlinemonitordata_2_sirui_bearing_current");
         remove.add("onlinemonitordata_2_sirui_front_rotor_vibration");
         remove.add("onlinemonitordata_2_sirui_insulation_overheating");
         remove.add("onlinemonitordata_2_sirui_rear_rotor_vibration");
-        //remove.add("onlinemonitordata_2_sirui_partial_discharge");
+        remove.add("onlinemonitordata_2_sirui_partial_discharge");
     }
-   /* static {
+    static {
         try {
-
-            String pgsql_url = propertiesUtil.readValue("pgsql_url");
-            System.out.println(pgsql_url);
-            Class.forName("org.postgresql.Driver");
-            c = DriverManager
-                    //.getConnection("jdbc:postgresql://localhost:5432/postgres",
-                    .getConnection(pgsql_url,
-                            //.getConnection("jdbc:postgresql://172.17.195.191:5432/postgres",
-                            "postgres", "postgres");
+              PgsqlDataSource pgsqlDataSource = new PgsqlDataSource();
+              c = pgsqlDataSource.getConnection();
             c.setAutoCommit(false);
             System.out.println("Opened database successfully");
         } catch (Exception e) {
@@ -68,7 +65,7 @@ public class Data2InfluxDB_History {
             Statement stmt = c.createStatement();
             String sql = "";
             //控制机器号
-            for (int i = 1; i <= 2; i++) {
+            for (int i = 1; i <= 3; i++) {
                 //控制通道号
                 for (int j = 1; j <= 3; j++) {
                     sql = String.format(" SELECT * FROM partial_discharge  where machine='%s' AND channelId=%s ORDER BY createtime DESC LIMIT 1", i, j);
@@ -89,32 +86,34 @@ public class Data2InfluxDB_History {
         } catch (ParseException e) {
             e.printStackTrace();
         }
-    }*/
+    }
 
 
 
 
     public static void main(String[] args) throws InterruptedException, SQLException, ParseException, IOException {
-        //String arg = args[0];
+        String arg = args[0];
+        System.out.println(arg);
         String influx_db = propertiesUtil.readValue("influx_db");
         String influx_url = "http://192.168.31.210:8086";
-        InfluxDBConnect influxDBConnection = new InfluxDBConnect("admin", "admin", influx_url, influx_db);
-        long startTime = System.currentTimeMillis();
+        //String influx_url = "http://47.94.128.225:8086";
+       InfluxDBConnect influxDBConnection = new InfluxDBConnect("admin", "admin", influx_url, influx_db);
+       /*  long startTime = System.currentTimeMillis();
         ReadInfluxDB(influxDBConnection);
         long stopTime = System.currentTimeMillis();
-        System.out.println("文件夹所用时间:" + (stopTime - startTime) + "毫秒");
-      /*  File file_History = new File(arg);
+        System.out.println("文件夹所用时间:" + (stopTime - startTime) + "毫秒");*/
         //File file_History = new File("F:\\data\\test\\无重复");
+        File file_History = new File(arg);
         File[] files = file_History.listFiles();
         for (int i = 0; i < files.length; i++) {
-
+            System.out.println("进入for循环");
             Thread.sleep(2000);
             //System.out.println(file_path);
             // File file = new File("/root/1561101780000");
             File file = new File(files[i].toString());
             List<String> collect = Arrays.stream(file.listFiles()).map(File::getName).collect(Collectors.toList());
             collect.retainAll(remove);
-            if (collect.size() >0) {
+            if (collect.size() >1) {
                 long startTime = System.currentTimeMillis();
                 file2TD(influxDBConnection,file);
                 long stopTime = System.currentTimeMillis();
@@ -124,7 +123,6 @@ public class Data2InfluxDB_History {
             }
 
         }
-*/
 
 
     }
@@ -157,50 +155,27 @@ public class Data2InfluxDB_History {
             //String machine = files[i].toString().split("\\\\")[files[i].toString().split("\\\\").length - 1];
 
             //振动入库
-            if (machine.equals("onlinemonitordata_1_sirui_rear_rotor_vibration")) {
+            if (machine.endsWith("rotor_vibration")) {
 
-                rotor_vibration(influxDBConnection, files[i],"tdm_back_bearing_1");
-
-            }
-            if (machine.equals("onlinemonitordata_2_sirui_rear_rotor_vibration")) {
-
-                rotor_vibration(influxDBConnection, files[i],"tdm_back_bearing_2");
+                rotor_vibration(influxDBConnection, files[i]);
 
             }
-            if (machine.equals("onlinemonitordata_2_sirui_front_rotor_vibration")) {
 
-                rotor_vibration(influxDBConnection, files[i],"tdm_front_bearing_2");
-
-            }
-            if (machine.equals("onlinemonitordata_1_sirui_front_rotor_vibration")) {
-
-                rotor_vibration(influxDBConnection, files[i],"tdm_front_bearing_1");
-
-            }
             //绝缘过热
-            if (machine.equals("onlinemonitordata_2_sirui_insulation_overheating")) {
-                insulation_overheating(influxDBConnection, files[i],"tdm_Insulating_material_overheating_2");
-
-            }
-            if (machine.equals("onlinemonitordata_1_sirui_insulation_overheating")) {
-                insulation_overheating(influxDBConnection, files[i],"tdm_Insulating_material_overheating_1");
+            if (machine.endsWith("insulation_overheating")) {
+                insulation_overheating(influxDBConnection, files[i]);
 
             }
             //轴电流
-            if (machine.equals("onlinemonitordata_2_sirui_bearing_current")) {
-                bearing_current(influxDBConnection, files[i],"tdm_shaft_electric_current_2");
+            if (machine.endsWith("bearing_current")) {
+                bearing_current(influxDBConnection, files[i]);
 
             }
-            if (machine.equals("onlinemonitordata_1_sirui_bearing_current")) {
-                bearing_current(influxDBConnection, files[i],"tdm_shaft_electric_current_1");
 
+            if (machine.endsWith("partial_discharge")) {
+                partial_discharge(c, files[i]);
             }
-          /*  if (machine.startsWith("onlinemonitordata_2_sirui_partial_discharge")) {
-                partial_discharge(c, files[i], "partial_discharge", "2");
-            }
-            if (machine.startsWith("onlinemonitordata_1_sirui_partial_discharge")) {
-                partial_discharge(c, files[i], "partial_discharge", "1");
-            }*/
+
         }
 
     /*    for (int i = 0; i < files.length; i++) {
@@ -249,7 +224,7 @@ public class Data2InfluxDB_History {
      * @Author: 何鹏
      * @Date: 2019/10/15 13:54
      */
-    private static void rotor_vibration(InfluxDBConnect influxDBConnection, File file,String tableName) {
+    private static void rotor_vibration(InfluxDBConnect influxDBConnection, File file) {
 
 
         String s;
@@ -257,7 +232,7 @@ public class Data2InfluxDB_History {
         //读取文件
         s = readToString(file.toString());
         String[] split = s.split("\n");
-
+        String tableName = "tdm" + file.getName().replace("onlinemonitordata_", "").replace("_sirui", "");
         for (int i1 = 1; i1 <= split.length; i1++) {
         try {
             String[] split2 = split[i1 - 1].split(" ");
@@ -273,12 +248,12 @@ public class Data2InfluxDB_History {
 
             Map<String, String> tags = new HashMap<String, String>();
             Map<String, Object> fields = new HashMap<String, Object>();
-            fields.put("sensor1", arrayList1.get(0));
-            fields.put("sensor2", arrayList1.get(1));
-            fields.put("sensor3", arrayList1.get(2));
-            fields.put("sensor4", arrayList1.get(3));
+            fields.put("non_outgoing_x", arrayList1.get(0));
+            fields.put("non_outgoing_y", arrayList1.get(1));
+            fields.put("outgoing_x", arrayList1.get(2));
+            fields.put("outgoing_y", arrayList1.get(3));
             //震动解析数据剩余(解析未知)
-            fields.put("sensor5", arrayList1.get(4));
+            //fields.put("sensor5", arrayList1.get(4));
 
 
             Point point = influxDBConnection.pointBuilder(tableName, time, tags, fields);
@@ -298,11 +273,11 @@ public class Data2InfluxDB_History {
         try {
 
         influxDBConnection.batchInsert("xiangtan", "", InfluxDB.ConsistencyLevel.ALL, records);
-        }catch (Exception e){
-            System.out.println("入库报错:"+e.getMessage());
-            file.delete();
-        }
         file.delete();
+        }catch (Exception e){
+            System.out.println("振动入库失败");
+            e.printStackTrace();
+        }
         // long stopTime = System.currentTimeMillis();
         // System.out.println(tableName + "文件夹所用时间:" + (stopTime - startTime) + "毫秒");
 
@@ -317,12 +292,12 @@ public class Data2InfluxDB_History {
      * @Author: 何鹏
      * @Date: 2019/10/15 13:54
      */
-    private static void insulation_overheating(InfluxDBConnect influxDBConnection, File file,String tableName) {
+    private static void insulation_overheating(InfluxDBConnect influxDBConnection, File file) {
         String s;
         List<String> records = new ArrayList<String>();
         s = readToString(file.toString());
         String[] split = s.split("\n");
-
+        String tableName = "tdm" + file.getName().replace("onlinemonitordata_", "").replace("_sirui", "");
         for (int i1 = 1; i1 <= split.length; i1++) {
             try {
             String[] split2 = split[i1 - 1].split(" ");
@@ -341,9 +316,9 @@ public class Data2InfluxDB_History {
             Map<String, String> tags = new HashMap<String, String>();
             Map<String, Object> fields = new HashMap<String, Object>();
 
-            fields.put("sensor1", arrayList1.get(0));
-            fields.put("sensor2", arrayList1.get(1));
-            fields.put("sensor3", arrayList1.get(2));
+            fields.put("channel_1", arrayList1.get(0));
+            fields.put("channel_2", arrayList1.get(1));
+            fields.put("channel_3", arrayList1.get(2));
 
             // influxDBConnection.insert("rear_rotor_vibration_1",tags,fields,time,TimeUnit.MILLISECONDS);
 
@@ -364,11 +339,11 @@ public class Data2InfluxDB_History {
         try {
 
             influxDBConnection.batchInsert("xiangtan", "", InfluxDB.ConsistencyLevel.ALL, records);
-        }catch (Exception e){
-            System.out.println("入库报错:"+e.getMessage());
             file.delete();
+        }catch (Exception e){
+            System.out.println("绝缘过热入库失败");
+            e.printStackTrace();
         }
-        file.delete();
         //long stopTime = System.currentTimeMillis();
         // System.out.println(tableName + "文件夹所用时间:" + (stopTime - startTime) + "毫秒");
     }
@@ -382,11 +357,12 @@ public class Data2InfluxDB_History {
      * @Author: 何鹏
      * @Date: 2019/10/15 13:55
      */
-    private static void bearing_current(InfluxDBConnect influxDBConnection, File file,String tableName) {
+    private static void bearing_current(InfluxDBConnect influxDBConnection, File file) {
         String s;
         List<String> records = new ArrayList<String>();
         s = readToString(file.toString());
         String[] split = s.split("\n");
+        String tableName = "tdm" + file.getName().replace("onlinemonitordata_", "").replace("_sirui", "");
 
         for (int i1 = 1; i1 <= split.length; i1++) {
             try {
@@ -403,7 +379,7 @@ public class Data2InfluxDB_History {
             Map<String, String> tags = new HashMap<String, String>();
             Map<String, Object> fields = new HashMap<String, Object>();
             // System.out.println("轴电流:"+split2[2].substring(40960,split2[2].length()));
-            fields.put("sensor1", split2[2]);
+            fields.put("channel", split2[2]);
 
 
             // influxDBConnection.insert("rear_rotor_vibration_1",tags,fields,time,TimeUnit.MILLISECONDS);
@@ -425,11 +401,12 @@ public class Data2InfluxDB_History {
         //long startTime = System.currentTimeMillis();
         try {
             influxDBConnection.batchInsert("xiangtan", "", InfluxDB.ConsistencyLevel.ALL, records);
-        }catch (Exception e){
-            System.out.println("入库报错:"+e.getMessage());
             file.delete();
+        }catch (Exception e){
+           // System.out.println(file.getName()+"入库报错:"+e.getMessage());
+            System.out.println("轴电流入库失败");
+            e.printStackTrace();
         }
-       file.delete();
         //long stopTime = System.currentTimeMillis();
         //System.out.println(tableName + "文件夹所用时间:" + (stopTime - startTime) + "毫秒");
     }
@@ -443,39 +420,52 @@ public class Data2InfluxDB_History {
      * @Author: 何鹏
      * @Date: 2019/10/16 16:32
      */
-   /* private static void partial_discharge(Connection c, File file, String tableName, String machine) throws SQLException, ParseException {
-        String s;
-        s = readToString(file.toString());
-        String[] value = s.split("\n");
-        Statement stmt = c.createStatement();
-        for (int i = 0; i < value.length; i++) {
-            String[] split = value[i].split(" ");
-            Date parse = null;
-            String format = "";
-            parse = sdf.parse(split[0] + " " + split[1]);
-            long time = parse.getTime();
-            if ((long) lastTime.getOrDefault(machine + split[2], 0L) < time) {
-                lastTime.put(machine + split[2], time);
-                format = sdf.format(parse);
-                String sql = String.format("insert into %s (createtime,machine,channelId,pdi,pdiminus,pdiplus,q02,q02minus,q02mv,q02plus,sumpdampl,sumpdminus,sumpdplus,pdexists,humidity,temperature) values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", tableName, "'" + format + "'", machine, split[2], split[3], split[4], split[5], split[6], split[7], split[8], split[9], split[10], split[11], split[12], split[13], split[14], split[15]);
-                stmt.executeUpdate(sql);
+    private static void partial_discharge(Connection c, File file)  {
+        try {
+            String s;
+            s = readToString(file.toString());
+            String[] value = s.split("\n");
+            Statement stmt = c.createStatement();
+            String tableName="partial_discharge";
+            String machine;
+            if (file.getName().contains("1")){
+                machine="1";
+            }else if (file.getName().contains("2")){
+                machine="2";
+            }else {
+                machine="3";
             }
+            for (int i = 0; i < value.length; i++) {
+                String[] split = value[i].split(" ");
+                Date parse = null;
+                String format = "";
+                parse = sdf.parse(split[0] + " " + split[1]);
+                long time = parse.getTime();
+                if ((long) lastTime.getOrDefault(machine + split[2], 0L) < time) {
+                    lastTime.put(machine + split[2], time);
+                    format = sdf.format(parse);
+                    String sql = String.format("insert into %s (createtime,machine,channelId,pdi,pdiminus,pdiplus,q02,q02minus,q02mv,q02plus,sumpdampl,sumpdminus,sumpdplus,pdexists,humidity,temperature) values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", tableName, "'" + format + "'", machine, split[2], split[3], split[4], split[5], split[6], split[7], split[8], split[9], split[10], split[11], split[12], split[13], split[14], split[15]);
+                    stmt.executeUpdate(sql);
+                }
+            }
+            stmt.close();
+            c.commit();
+            file.delete();
+        }catch (Exception e){
+            System.out.println("局部放电入库失败");
+            e.printStackTrace();
         }
-        stmt.close();
-        c.commit();
-        file.delete();
     }
-*/
     private static void ReadInfluxDB(InfluxDBConnect influxDBConnection) {
         long startTime = System.currentTimeMillis();
-         //QueryResult query = influxDBConnection.query("select SAMPLE(sensor1,5) from onlinemonitordata_1_tsziot_front_rotor_vibration where time>='2019-10-10T16:00:00Z' and time<='2019-10-11T15:59:59Z'");
-         QueryResult query = influxDBConnection.query("select count(sensor1) from tdm_shaft_electric_current_1 tz('Asia/Shanghai')");
-      // QueryResult query = influxDBConnection.query("select last(sensor1) from onlinemonitordata_1_tsziot_front_rotor_vibration where time>='2019-10-11T15:50:00Z' and time<='2019-10-11T15:59:59Z' tz('Asia/Shanghai')");
+        // QueryResult query = influxDBConnection.query("select SAMPLE(sensor1,5) from onlinemonitordata_1_tsziot_front_rotor_vibration where time>='2019-10-10T16:00:00Z' and time<='2019-10-11T15:59:59Z'");
+         //QueryResult query = influxDBConnection.query("select count(sensor1) from tdm_shaft_electric_current_1 tz('Asia/Shanghai')");
+      //QueryResult query = influxDBConnection.query("select last(sensor1) from onlinemonitordata_1_tsziot_front_rotor_vibration where time>='2019-10-11T15:50:00Z' and time<='2019-10-11T15:59:59Z' tz('Asia/Shanghai')");
       //
-       //QueryResult query = influxDBConnection.query("select sensor1 from onlinemonitordata_1_tsziot_front_rotor_vibration  where time>='2019-10-11T15:50:00Z' and time<='2019-10-11T15:59:59Z' order by time desc limit 1 tz('Asia/Shanghai')");
+      QueryResult query = influxDBConnection.query("select sensor1 from onlinemonitordata_1_tsziot_front_rotor_vibration  where time>='2019-10-10T15:50:00Z' and time<='2019-10-11T15:59:59Z' order by time desc limit 2 tz('Asia/Shanghai')");
         //QueryResult query = influxDBConnection.query(" SELECT count(\"sensor1\") FROM \"onlinemonitordata_2_tsziot_bearing_current\" where time>='2019-10-10T16:00:00Z' and time<='2019-10-11T15:59:59Z'GROUP BY time(1h) tz('Asia/Shanghai')");
 
-       // QueryResult query = influxDBConnection.query(" SELECT * FROM onlinemonitordata_1_tsziot_front_rotor_vibration where time>='2019-10-10T15:58:00Z' and time<='2019-10-10T15:59:59Z' tz('Asia/Shanghai')");
+      // QueryResult query = influxDBConnection.query(" SELECT sensor4 FROM onlinemonitordata_1_tsziot_front_rotor_vibration where time>='2019-10-10T15:58:00Z' and time<='2019-10-10T15:59:59Z' tz('Asia/Shanghai')");
         QueryResult.Result result = query.getResults().get(0);
         long stopTime = System.currentTimeMillis();
 
